@@ -1,0 +1,7 @@
+node_modules/
+aliases.json
+.DS_Store
+*.log
+.env
+.playwright-mcp/
+.claude/
