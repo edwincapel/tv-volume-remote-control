@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>TV Remote</title>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-card: #161b22;
+      --bg-elevated: #1c2333;
+      --bg-hover: #21293a;
+      --bg-active: #2a3347;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-tertiary: #484f58;
+      --accent: #58a6ff;
+      --accent-dim: #1a3a5c;
+      --green: #3fb950;
+      --green-dim: #0d3117;
+      --red: #f85149;
+      --red-dim: #3d1117;
+      --yellow: #d29922;
+      --border: rgba(255,255,255,0.06);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .viewport {
+      position: relative;
+      max-width: 430px;
+      margin: 0 auto;
+      overflow: hidden;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    /* --- Slide transitions --- */
+    .view {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: 0 20px 40px;
+      transition: transform var(--transition), opacity var(--transition);
+      will-change: transform, opacity;
+    }
+
+    #listView {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    #listView.slide-out {
+      transform: translateX(-30%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #remoteView {
+      transform: translateX(100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+    #remoteView.slide-in {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* --- Header --- */
+    .header {
+      padding: 56px 0 24px;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+    }
+    .header-subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    /* --- Scan Status --- */
+    .scan-status {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-bottom: 20px;
+      transition: color 0.3s;
+    }
+    .scan-status.scanning {
+      color: var(--yellow);
+    }
+
+    /* --- TV List Cards --- */
+    .tv-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .tv-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: transform 0.12s, background 0.2s, box-shadow 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .tv-item:hover { background: var(--bg-hover); }
+    .tv-item:active {
+      transform: scale(0.975);
+      background: var(--bg-active);
+    }
+
+    .tv-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--accent-dim);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .tv-icon svg {
+      width: 22px;
+      height: 22px;
+      color: var(--accent);
+    }
+
+    .tv-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .tv-alias {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+    .tv-detail {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tv-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .btn-rename {
+      background: none;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: var(--radius-sm);
+      transition: color 0.15s, background 0.15s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-rename:hover { color: var(--accent); background: var(--accent-dim); }
+    .btn-rename:active { transform: scale(0.85); }
+    .btn-rename svg { width: 16px; height: 16px; }
+
+    .tv-chevron {
+      color: var(--text-tertiary);
+      display: flex;
+      align-items: center;
+    }
+    .tv-chevron svg { width: 18px; height: 18px; }
+
+    /* --- Scan Button --- */
+    .btn-scan {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 24px auto 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 12px 28px;
+      border-radius: 50px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-scan:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .btn-scan:active { transform: scale(0.95); }
+    .btn-scan svg { width: 16px; height: 16px; }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .btn-scan.loading svg {
+      animation: spin 1s linear infinite;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .empty-state-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      background: var(--bg-elevated);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .empty-state-icon svg { width: 28px; height: 28px; color: var(--text-tertiary); }
+    .empty-state p {
+      color: var(--text-tertiary);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* =============================== */
+    /* --- Remote View --- */
+    /* =============================== */
+
+    .remote-header {
+      padding: 56px 0 8px;
+      display: flex;
+      align-items: center;
+    }
+    .btn-back {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 8px 12px 8px 4px;
+      border-radius: var(--radius-sm);
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-back:hover { background: var(--accent-dim); }
+    .btn-back:active { transform: scale(0.92); }
+    .btn-back svg { width: 20px; height: 20px; }
+
+    .remote-device-info {
+      text-align: center;
+      padding: 16px 0 8px;
+    }
+    .remote-device-name {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
+    }
+    .remote-device-sub {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+
+    .connection-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 50px;
+      margin: 12px auto;
+      text-align: center;
+      transition: background 0.3s, color 0.3s;
+    }
+    .connection-badge.ok {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+    .connection-badge.err {
+      background: var(--red-dim);
+      color: var(--red);
+    }
+    .connection-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* --- Volume Ring --- */
+    .volume-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 0;
+    }
+
+    .volume-ring-container {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      margin: 0 auto;
+    }
+
+    .volume-ring {
+      width: 200px;
+      height: 200px;
+      transform: rotate(-90deg);
+    }
+    .volume-ring-bg {
+      fill: none;
+      stroke: var(--bg-elevated);
+      stroke-width: 10;
+    }
+    .volume-ring-fill {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 10;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.3s ease, stroke 0.3s;
+    }
+    .volume-ring-fill.muted {
+      stroke: var(--red);
+    }
+
+    .volume-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .volume-number {
+      font-size: 56px;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      letter-spacing: -2px;
+      transition: color 0.3s;
+    }
+    .volume-number.muted {
+      color: var(--red);
+    }
+    .volume-label {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    /* --- Control Buttons --- */
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 24px 0;
+    }
+
+    .ctrl-btn {
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s, background 0.2s, box-shadow 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .ctrl-btn:active { transform: scale(0.88); }
+
+    .ctrl-btn-vol {
+      width: 72px;
+      height: 72px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+    .ctrl-btn-vol:hover {
+      background: var(--bg-hover);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .ctrl-btn-vol svg { width: 28px; height: 28px; }
+
+    .ctrl-btn-mute {
+      width: 60px;
+      height: 60px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      transition: transform 0.1s, background 0.3s, color 0.3s, border-color 0.3s;
+    }
+    .ctrl-btn-mute:hover {
+      background: var(--bg-hover);
+    }
+    .ctrl-btn-mute.active {
+      background: var(--red-dim);
+      color: var(--red);
+      border-color: rgba(248,81,73,0.2);
+    }
+    .ctrl-btn-mute svg { width: 24px; height: 24px; }
+
+    /* --- Slider --- */
+    .slider-section {
+      padding: 8px 8px 0;
+    }
+    .slider-track-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .slider-label {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      min-width: 24px;
+      text-align: center;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 36px;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 3px;
+      background: var(--bg-elevated);
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--text-primary);
+      margin-top: -8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      transition: transform 0.1s;
+    }
+    input[type=range]:active::-webkit-slider-thumb {
+      transform: scale(1.15);
+    }
+    /* Firefox */
+    input[type=range]::-moz-range-track {
+      height: 6px;
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      border: none;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--text-primary);
+      border: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+<div class="viewport">
+
+  <!-- ===== TV List View ===== -->
+  <div class="view" id="listView">
+    <div class="header">
+      <h1>TV Remote</h1>
+      <div class="header-subtitle">Select a device to control</div>
+    </div>
+    <div class="scan-status" id="scanStatus">Scanning network...</div>
+    <ul class="tv-list" id="tvList"></ul>
+    <button class="btn-scan" id="btnScan" onclick="scan()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+      Scan Network
+    </button>
+  </div>
+
+  <!-- ===== Remote View ===== -->
+  <div class="view" id="remoteView">
+    <div class="remote-header">
+      <button class="btn-back" onclick="goBack()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Devices
+      </button>
+    </div>
+
+    <div class="remote-device-info">
+      <div class="remote-device-name" id="remoteName">--</div>
+      <div class="remote-device-sub" id="remoteSub">--</div>
+      <div style="text-align:center">
+        <span class="connection-badge ok" id="status">
+          <span class="connection-dot"></span>
+          Connecting...
+        </span>
+      </div>
+    </div>
+
+    <div class="volume-section">
+      <div class="volume-ring-container">
+        <svg class="volume-ring" viewBox="0 0 200 200">
+          <circle class="volume-ring-bg" cx="100" cy="100" r="85"/>
+          <circle class="volume-ring-fill" id="volRing" cx="100" cy="100" r="85"
+            stroke-dasharray="534.07"
+            stroke-dashoffset="534.07"/>
+        </svg>
+        <div class="volume-center">
+          <div class="volume-number" id="volDisplay">--</div>
+          <div class="volume-label">Volume</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <button class="ctrl-btn ctrl-btn-vol" onclick="volDown()" aria-label="Volume Down">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>
+      </button>
+      <button class="ctrl-btn ctrl-btn-mute" id="btnMute" onclick="toggleMute()" aria-label="Toggle Mute">
+        <svg id="muteIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <line x1="23" y1="9" x2="17" y2="15"/>
+          <line x1="17" y1="9" x2="23" y2="15"/>
+        </svg>
+      </button>
+      <button class="ctrl-btn ctrl-btn-vol" onclick="volUp()" aria-label="Volume Up">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+
+    <div class="slider-section">
+      <div class="slider-track-wrap">
+        <span class="slider-label">0</span>
+        <input type="range" min="0" max="100" value="0" id="volSlider" oninput="sliderChange(this.value)">
+        <span class="slider-label">100</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let devices = [];
+  let aliases = {};
+  let activeIP = null;
+  let vol = 0, muted = false;
+  let pollTimer = null;
+  let debounce = null;
+
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 85; // ~534.07
+
+  // --- XSS-safe text escaping ---
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // --- Inline SVGs as strings ---
+  const SVG_TV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="12" rx="2"/><polyline points="17 2 12 7 7 2"/></svg>';
+  const SVG_PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
+  const SVG_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+  const SVG_WIFI_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.56 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>';
+
+  // ================================
+  // TV List View
+  // ================================
+
+  async function scan() {
+    const btn = document.getElementById('btnScan');
+    const statusEl = document.getElementById('scanStatus');
+    statusEl.textContent = 'Scanning network\u2026';
+    statusEl.className = 'scan-status scanning';
+    btn.classList.add('loading');
+    document.getElementById('tvList').innerHTML = '';
+
+    try {
+      const r = await fetch('/api/devices');
+      const d = await r.json();
+      devices = d.devices || [];
+      aliases = d.aliases || {};
+      renderList();
+    } catch {
+      statusEl.textContent = 'Scan failed \u2014 check your connection';
+      statusEl.className = 'scan-status';
+    } finally {
+      btn.classList.remove('loading');
+    }
+  }
+
+  function renderList() {
+    const el = document.getElementById('tvList');
+    const statusEl = document.getElementById('scanStatus');
+
+    if (!devices.length) {
+      el.innerHTML =
+        '<li class="empty-state">' +
+          '<div class="empty-state-icon">' + SVG_WIFI_OFF + '</div>' +
+          '<p>No Cast devices found.<br>Make sure you\u2019re on the same Wi-Fi network.</p>' +
+        '</li>';
+      statusEl.textContent = 'No devices found';
+      statusEl.className = 'scan-status';
+      return;
+    }
+
+    statusEl.textContent = devices.length + ' device' + (devices.length > 1 ? 's' : '') + ' found';
+    statusEl.className = 'scan-status';
+
+    el.innerHTML = devices.map(function(d) {
+      var alias = aliases[d.ip] || d.name;
+      return '<li class="tv-item" onclick="selectTV(\'' + esc(d.ip) + '\')">' +
+        '<div class="tv-icon">' + SVG_TV + '</div>' +
+        '<div class="tv-info">' +
+          '<div class="tv-alias">' + esc(alias) + '</div>' +
+          '<div class="tv-detail">' + esc(d.model) + ' \u00B7 ' + esc(d.ip) + '</div>' +
+        '</div>' +
+        '<div class="tv-actions">' +
+          '<button class="btn-rename" title="Rename" onclick="event.stopPropagation();renameTV(\'' + esc(d.ip) + '\',\'' + esc(alias).replace(/'/g, '\\&#39;') + '\')">' + SVG_PENCIL + '</button>' +
+        '</div>' +
+        '<span class="tv-chevron">' + SVG_CHEVRON + '</span>' +
+      '</li>';
+    }).join('');
+  }
+
+  async function renameTV(ip, current) {
+    var name = prompt('Enter alias for this TV:', current);
+    if (name === null) return;
+    var trimmed = name.trim();
+    try {
+      await fetch('/api/alias', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: ip, alias: trimmed || null })
+      });
+      if (trimmed) aliases[ip] = trimmed;
+      else delete aliases[ip];
+      renderList();
+    } catch {}
+  }
+
+  // ================================
+  // Remote View
+  // ================================
+
+  function selectTV(ip) {
+    activeIP = ip;
+    var dev = devices.find(function(d) { return d.ip === ip; });
+    var alias = aliases[ip] || (dev ? dev.name : ip);
+    document.getElementById('remoteName').textContent = alias;
+    document.getElementById('remoteSub').textContent = (dev ? dev.model : '') + ' \u2022 ' + ip;
+
+    // Reset UI
+    document.getElementById('status').innerHTML = '<span class="connection-dot"></span> Connecting\u2026';
+    document.getElementById('status').className = 'connection-badge ok';
+    document.getElementById('volDisplay').textContent = '--';
+    setRing(0);
+
+    // Slide transition
+    document.getElementById('listView').classList.add('slide-out');
+    document.getElementById('remoteView').classList.add('slide-in');
+
+    pollVolume();
+    pollTimer = setInterval(pollVolume, 5000);
+  }
+
+  function goBack() {
+    activeIP = null;
+    clearInterval(pollTimer);
+    document.getElementById('remoteView').classList.remove('slide-in');
+    document.getElementById('listView').classList.remove('slide-out');
+  }
+
+  async function tvApi(path) {
+    if (!activeIP) return null;
+    try {
+      var r = await fetch('/api/tv/' + activeIP + path);
+      var d = await r.json();
+      if (d.error) { setStatus(d.error, false); return null; }
+      vol = d.level;
+      muted = d.muted;
+      updateUI();
+      setStatus('Connected', true);
+      return d;
+    } catch(e) {
+      setStatus('Connection error', false);
+      return null;
+    }
+  }
+
+  function setRing(pct) {
+    var offset = RING_CIRCUMFERENCE - (pct / 100) * RING_CIRCUMFERENCE;
+    document.getElementById('volRing').style.strokeDashoffset = offset;
+  }
+
+  function updateUI() {
+    var pct = Math.round(vol * 100);
+    var display = document.getElementById('volDisplay');
+    var ring = document.getElementById('volRing');
+    var muteBtn = document.getElementById('btnMute');
+
+    display.textContent = pct;
+    display.className = 'volume-number' + (muted ? ' muted' : '');
+    ring.classList.toggle('muted', muted);
+    setRing(pct);
+
+    document.getElementById('volSlider').value = pct;
+    muteBtn.className = 'ctrl-btn ctrl-btn-mute' + (muted ? ' active' : '');
+
+    // Swap mute icon
+    var icon = document.getElementById('muteIcon');
+    if (muted) {
+      icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+    } else {
+      icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+    }
+  }
+
+  function setStatus(msg, ok) {
+    var el = document.getElementById('status');
+    el.innerHTML = '<span class="connection-dot"></span> ' + esc(msg);
+    el.className = 'connection-badge ' + (ok ? 'ok' : 'err');
+  }
+
+  function pollVolume() { tvApi('/volume'); }
+  function volUp() { tvApi('/volume/up'); }
+  function volDown() { tvApi('/volume/down'); }
+  function toggleMute() { tvApi('/mute/toggle'); }
+
+  function sliderChange(val) {
+    clearTimeout(debounce);
+    var pct = parseInt(val);
+    document.getElementById('volDisplay').textContent = pct;
+    setRing(pct);
+    debounce = setTimeout(function() { tvApi('/volume/set?level=' + (pct / 100)); }, 150);
+  }
+
+  // Initial scan on load
+  scan();
+</script>
+</body>
+</html>
